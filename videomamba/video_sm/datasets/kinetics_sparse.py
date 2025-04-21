@@ -60,8 +60,8 @@ class VideoClsDataset_sparse(Dataset):
 
         import pandas as pd
         cleaned = pd.read_csv(self.anno_path, header=None, delimiter=self.split)
-        self.dataset_samples = list(cleaned.values[:, 0])
-        self.label_array = list(cleaned.values[:, 1])
+        self.dataset_samples = [f"{youtube_id}_{int(time_start):06d}_{int(time_end):06d}.mp4" for label,youtube_id,time_start,time_end,split,is_cc in list(cleaned.values[1:])]
+        self.label_array = list(cleaned.values[1:, 0])
 
         self.client = None
         if has_client:

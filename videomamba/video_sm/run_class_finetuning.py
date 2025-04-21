@@ -246,8 +246,9 @@ def main(args, ds_init):
     # random.seed(seed)
 
     cudnn.benchmark = True
-
-    dataset_train, args.nb_classes = build_dataset(is_train=True, test_mode=False, args=args)
+    dataset_train = None
+    args.nb_classes = 400
+    # dataset_train, args.nb_classes = build_dataset(is_train=True, test_mode=False, args=args)
     if args.disable_eval_during_finetuning:
         dataset_val = None
     else:
