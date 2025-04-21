@@ -31,12 +31,16 @@ rsu/
                 ├── 01BFInmg3Zs_000001_000011.mp4
 
 ```shell
-wget https://huggingface.co/OpenGVLab/VideoMamba/blob/main/videomamba_t16_k400_f8_res224.pth
+# the site links:
+https://huggingface.co/OpenGVLab/VideoMamba/blob/main/videomamba_t16_k400_f8_res224.pth
+# the good links:
 wget https://huggingface.co/OpenGVLab/VideoMamba/resolve/main/videomamba_t16_k400_f16_res224.pth
 wget https://huggingface.co/OpenGVLab/VideoMamba/resolve/main/videomamba_t16_k400_f8_res224.pth
 
 # put them in:
 val_base/videomamba_t16_k400_f16_res224.pth 
 val_base/videomamba_t16_k400_f8_res224.pth
+
+# we are running on: swx-ray08
 ```
 
