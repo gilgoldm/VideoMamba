@@ -247,31 +247,34 @@ def main(args, ds_init):
 
     cudnn.benchmark = True
 
-    dataset_train, args.nb_classes = build_dataset(is_train=True, test_mode=False, args=args)
-    if args.disable_eval_during_finetuning:
-        dataset_val = None
-    else:
-        dataset_val, _ = build_dataset(is_train=False, test_mode=False, args=args)
+    dataset_train = None
+    
+    # dataset_train, args.nb_classes = build_dataset(is_train=True, test_mode=False, args=args)
+    # if args.disable_eval_during_finetuning:
+    #     dataset_val = None
+    # else:
+    #     dataset_val, _ = build_dataset(is_train=False, test_mode=False, args=args)
     dataset_test, _ = build_dataset(is_train=False, test_mode=True, args=args)
     
 
     num_tasks = utils.get_world_size()
     global_rank = utils.get_rank()
-    sampler_train = torch.utils.data.DistributedSampler(
-        dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
-    )
-    print("Sampler_train = %s" % str(sampler_train))
-    if args.dist_eval:
-        if len(dataset_val) % num_tasks != 0:
-            print('Warning: Enabling distributed evaluation with an eval dataset not divisible by process number. '
-                    'This will slightly alter validation results as extra duplicate entries are added to achieve '
-                    'equal num of samples per-process.')
-        sampler_val = torch.utils.data.DistributedSampler(
-            dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=False)
-        sampler_test = torch.utils.data.DistributedSampler(
-            dataset_test, num_replicas=num_tasks, rank=global_rank, shuffle=False)
-    else:
-        sampler_val = torch.utils.data.SequentialSampler(dataset_val)
+    # sampler_train = torch.utils.data.DistributedSampler(
+    #     dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
+    # )
+    # print("Sampler_train = %s" % str(sampler_train))
+    # if args.dist_eval:
+    #     if len(dataset_val) % num_tasks != 0:
+    #         print('Warning: Enabling distributed evaluation with an eval dataset not divisible by process number. '
+    #                 'This will slightly alter validation results as extra duplicate entries are added to achieve '
+    #                 'equal num of samples per-process.')
+    #     sampler_val = torch.utils.data.DistributedSampler(
+    #         dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=False)
+    #     sampler_test = torch.utils.data.DistributedSampler(
+    #         dataset_test, num_replicas=num_tasks, rank=global_rank, shuffle=False)
+    # else:
+    #     sampler_val = torch.utils.data.SequentialSampler(dataset_val)
+    sampler_test = torch.utils.data.SequentialSampler(dataset_test)
 
     if global_rank == 0 and args.log_dir is not None:
         os.makedirs(args.log_dir, exist_ok=True)
@@ -284,27 +287,27 @@ def main(args, ds_init):
     else:
         collate_func = None
 
-    data_loader_train = torch.utils.data.DataLoader(
-        dataset_train, sampler=sampler_train,
-        batch_size=args.batch_size,
-        num_workers=args.num_workers,
-        pin_memory=args.pin_mem,
-        drop_last=True,
-        collate_fn=collate_func,
-        persistent_workers=True
-    )
+    # data_loader_train = torch.utils.data.DataLoader(
+    #     dataset_train, sampler=sampler_train,
+    #     batch_size=args.batch_size,
+    #     num_workers=args.num_workers,
+    #     pin_memory=args.pin_mem,
+    #     drop_last=True,
+    #     collate_fn=collate_func,
+    #     persistent_workers=True
+    # )
 
-    if dataset_val is not None:
-        data_loader_val = torch.utils.data.DataLoader(
-            dataset_val, sampler=sampler_val,
-            batch_size=int(1.5 * args.batch_size),
-            num_workers=args.num_workers,
-            pin_memory=args.pin_mem,
-            drop_last=False,
-            persistent_workers=True
-        )
-    else:
-        data_loader_val = None
+    # if dataset_val is not None:
+    #     data_loader_val = torch.utils.data.DataLoader(
+    #         dataset_val, sampler=sampler_val,
+    #         batch_size=int(1.5 * args.batch_size),
+    #         num_workers=args.num_workers,
+    #         pin_memory=args.pin_mem,
+    #         drop_last=False,
+    #         persistent_workers=True
+    #     )
+    # else:
+    #     data_loader_val = None
 
     if dataset_test is not None:
         data_loader_test = torch.utils.data.DataLoader(
@@ -520,7 +523,7 @@ def main(args, ds_init):
     print('number of params:', n_parameters)
 
     total_batch_size = args.batch_size * args.update_freq * utils.get_world_size()
-    num_training_steps_per_epoch = len(dataset_train) // total_batch_size
+    # num_training_steps_per_epoch = len(dataset_train) // total_batch_size
     args.lr = args.lr * total_batch_size * args.num_sample / 256
     args.min_lr = args.min_lr * total_batch_size * args.num_sample / 256
     args.warmup_lr = args.warmup_lr * total_batch_size * args.num_sample / 256
@@ -528,8 +531,8 @@ def main(args, ds_init):
     print("Batch size = %d" % total_batch_size)
     print("Repeated sample = %d" % args.num_sample)
     print("Update frequent = %d" % args.update_freq)
-    print("Number of training examples = %d" % len(dataset_train))
-    print("Number of training training per epoch = %d" % num_training_steps_per_epoch)
+    # print("Number of training examples = %d" % len(dataset_train))
+    # print("Number of training training per epoch = %d" % num_training_steps_per_epoch)
 
     num_layers = model_without_ddp.get_num_layers()
     if args.layer_decay < 1.0:
@@ -573,16 +576,16 @@ def main(args, ds_init):
             amp_autocast = torch.cuda.amp.autocast(dtype=dtype)
             loss_scaler = NativeScaler()
 
-    print("Use step level LR scheduler!")
-    lr_schedule_values = utils.cosine_scheduler(
-        args.lr, args.min_lr, args.epochs, num_training_steps_per_epoch,
-        warmup_epochs=args.warmup_epochs, start_warmup_value=args.warmup_lr, warmup_steps=args.warmup_steps,
-    )
-    if args.weight_decay_end is None:
-        args.weight_decay_end = args.weight_decay
-    wd_schedule_values = utils.cosine_scheduler(
-        args.weight_decay, args.weight_decay_end, args.epochs, num_training_steps_per_epoch)
-    print("Max WD = %.7f, Min WD = %.7f" % (max(wd_schedule_values), min(wd_schedule_values)))
+    # print("Use step level LR scheduler!")
+    # lr_schedule_values = utils.cosine_scheduler(
+    #     args.lr, args.min_lr, args.epochs, num_training_steps_per_epoch,
+    #     warmup_epochs=args.warmup_epochs, start_warmup_value=args.warmup_lr, warmup_steps=args.warmup_steps,
+    # )
+    # if args.weight_decay_end is None:
+    #     args.weight_decay_end = args.weight_decay
+    # wd_schedule_values = utils.cosine_scheduler(
+    #     args.weight_decay, args.weight_decay_end, args.epochs, num_training_steps_per_epoch)
+    # print("Max WD = %.7f, Min WD = %.7f" % (max(wd_schedule_values), min(wd_schedule_values)))
 
     if mixup_fn is not None:
         # smoothing is handled with mixup label transform
@@ -621,61 +624,61 @@ def main(args, ds_init):
     print(f"Start training for {args.epochs} epochs")
     start_time = time.time()
     max_accuracy = 0.0
-    for epoch in range(args.start_epoch, args.epochs):
-        if args.distributed:
-            data_loader_train.sampler.set_epoch(epoch)
-        if log_writer is not None:
-            log_writer.set_step(epoch * num_training_steps_per_epoch * args.update_freq)
-        train_stats = train_one_epoch(
-            model, criterion, data_loader_train, optimizer,
-            device, epoch, loss_scaler, amp_autocast, args.clip_grad, model_ema, mixup_fn,
-            log_writer=log_writer, start_steps=epoch * num_training_steps_per_epoch,
-            lr_schedule_values=lr_schedule_values, wd_schedule_values=wd_schedule_values,
-            num_training_steps_per_epoch=num_training_steps_per_epoch, update_freq=args.update_freq,
-            no_amp=args.no_amp, bf16=args.bf16
-        )
-        if args.output_dir and args.save_ckpt:
-            # if (epoch + 1) % args.save_ckpt_freq == 0 or epoch + 1 == args.epochs:
-            #     utils.save_model(
-            #         args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
-            #         loss_scaler=loss_scaler, epoch=epoch, model_ema=model_ema)
-            utils.save_model(
-                args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
-                loss_scaler=loss_scaler, epoch=epoch, model_name='latest', model_ema=model_ema)
-        if data_loader_val is not None:
-            test_stats = validation_one_epoch(
-                data_loader_val, model, device, amp_autocast,
-                ds=args.enable_deepspeed, no_amp=args.no_amp, bf16=args.bf16,
-                maxk=5 if args.nb_classes >= 5 else 1
-            )
-            timestep = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-            print(f"[{timestep}] Accuracy of the network on the {len(dataset_val)} val videos: {test_stats['acc1']:.1f}%")
-            if max_accuracy < test_stats["acc1"]:
-                max_accuracy = test_stats["acc1"]
-                if args.output_dir and args.save_ckpt:
-                    utils.save_model(
-                        args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
-                        loss_scaler=loss_scaler, epoch=epoch, model_name='best', model_ema=model_ema)
+    # for epoch in range(args.start_epoch, args.epochs):
+    #     # if args.distributed:
+    #     #     data_loader_train.sampler.set_epoch(epoch)
+    #     if log_writer is not None:
+    #         log_writer.set_step(epoch * num_training_steps_per_epoch * args.update_freq)
+    #     train_stats = train_one_epoch(
+    #         model, criterion, data_loader_train, optimizer,
+    #         device, epoch, loss_scaler, amp_autocast, args.clip_grad, model_ema, mixup_fn,
+    #         log_writer=log_writer, start_steps=epoch * num_training_steps_per_epoch,
+    #         lr_schedule_values=lr_schedule_values, wd_schedule_values=wd_schedule_values,
+    #         num_training_steps_per_epoch=num_training_steps_per_epoch, update_freq=args.update_freq,
+    #         no_amp=args.no_amp, bf16=args.bf16
+    #     )
+    #     if args.output_dir and args.save_ckpt:
+    #         # if (epoch + 1) % args.save_ckpt_freq == 0 or epoch + 1 == args.epochs:
+    #         #     utils.save_model(
+    #         #         args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
+    #         #         loss_scaler=loss_scaler, epoch=epoch, model_ema=model_ema)
+    #         utils.save_model(
+    #             args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
+    #             loss_scaler=loss_scaler, epoch=epoch, model_name='latest', model_ema=model_ema)
+    #     if data_loader_val is not None:
+    #         test_stats = validation_one_epoch(
+    #             data_loader_val, model, device, amp_autocast,
+    #             ds=args.enable_deepspeed, no_amp=args.no_amp, bf16=args.bf16,
+    #             maxk=5 if args.nb_classes >= 5 else 1
+    #         )
+    #         timestep = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+    #         print(f"[{timestep}] Accuracy of the network on the {len(dataset_val)} val videos: {test_stats['acc1']:.1f}%")
+    #         if max_accuracy < test_stats["acc1"]:
+    #             max_accuracy = test_stats["acc1"]
+    #             if args.output_dir and args.save_ckpt:
+    #                 utils.save_model(
+    #                     args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
+    #                     loss_scaler=loss_scaler, epoch=epoch, model_name='best', model_ema=model_ema)
 
-            print(f'Max accuracy: {max_accuracy:.2f}%')
-            if log_writer is not None:
-                log_writer.update(val_acc1=test_stats['acc1'], head="perf", step=epoch)
-                log_writer.update(val_acc5=test_stats['acc5'], head="perf", step=epoch)
-                log_writer.update(val_loss=test_stats['loss'], head="perf", step=epoch)
+    #         print(f'Max accuracy: {max_accuracy:.2f}%')
+    #         if log_writer is not None:
+    #             log_writer.update(val_acc1=test_stats['acc1'], head="perf", step=epoch)
+    #             log_writer.update(val_acc5=test_stats['acc5'], head="perf", step=epoch)
+    #             log_writer.update(val_loss=test_stats['loss'], head="perf", step=epoch)
 
-            log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
-                         **{f'val_{k}': v for k, v in test_stats.items()},
-                         'epoch': epoch,
-                         'n_parameters': n_parameters}
-        else:
-            log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
-                         'epoch': epoch,
-                         'n_parameters': n_parameters}
-        if args.output_dir and utils.is_main_process():
-            if log_writer is not None:
-                log_writer.flush()
-            with open(os.path.join(args.output_dir, "log.txt"), mode="a", encoding="utf-8") as f:
-                f.write(json.dumps(log_stats) + "\n")
+    #         log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
+    #                      **{f'val_{k}': v for k, v in test_stats.items()},
+    #                      'epoch': epoch,
+    #                      'n_parameters': n_parameters}
+    #     else:
+    #         log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
+    #                      'epoch': epoch,
+    #                      'n_parameters': n_parameters}
+    #     if args.output_dir and utils.is_main_process():
+    #         if log_writer is not None:
+    #             log_writer.flush()
+    #         with open(os.path.join(args.output_dir, "log.txt"), mode="a", encoding="utf-8") as f:
+    #             f.write(json.dumps(log_stats) + "\n")
 
     preds_file = os.path.join(args.output_dir, str(global_rank) + '.txt')
     if args.test_best:
